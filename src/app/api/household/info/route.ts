@@ -17,16 +17,10 @@ export async function GET() {
     return NextResponse.json({ household: null });
   }
 
-  const { data: household } = await supabase
-    .from("households")
-    .select("invite_code")
-    .eq("id", profile.household_id)
-    .single();
-
-  const { data: members } = await supabase
-    .from("profiles")
-    .select("user_id, display_name")
-    .eq("household_id", profile.household_id);
+  const [{ data: household }, { data: members }] = await Promise.all([
+    supabase.from("households").select("invite_code").eq("id", profile.household_id).single(),
+    supabase.from("profiles").select("user_id, display_name").eq("household_id", profile.household_id),
+  ]);
 
   return NextResponse.json({
     household: {

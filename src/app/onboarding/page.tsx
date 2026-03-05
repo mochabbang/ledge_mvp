@@ -6,6 +6,12 @@ import { createClient } from "@/lib/supabase/client";
 type Step = "nickname" | "household" | "goal";
 type HouseholdAction = "none" | "create" | "join";
 
+const HOUSEHOLD_LABELS: Record<HouseholdAction, { title: string; sub: string }> = {
+  none:   { title: "혼자 시작하기",       sub: "나중에 가족을 초대할 수 있어요" },
+  create: { title: "새 가족 만들기",       sub: "초대 코드를 생성해 가족을 초대해요" },
+  join:   { title: "초대 코드로 참여하기", sub: "가족에게 받은 6자리 코드를 입력해요" },
+};
+
 export default function OnboardingPage() {
   const [step, setStep] = useState<Step>("nickname");
   const [displayName, setDisplayName] = useState("");
@@ -147,12 +153,7 @@ export default function OnboardingPage() {
             <p className="text-gray-500 text-sm mb-6">가족과 함께 쓰거나 혼자 시작할 수 있어요</p>
             <form onSubmit={handleHouseholdNext} className="space-y-3">
               {(["none", "create", "join"] as HouseholdAction[]).map((action) => {
-                const labels: Record<HouseholdAction, { title: string; sub: string }> = {
-                  none:   { title: "혼자 시작하기",         sub: "나중에 가족을 초대할 수 있어요" },
-                  create: { title: "새 가족 만들기",         sub: "초대 코드를 생성해 가족을 초대해요" },
-                  join:   { title: "초대 코드로 참여하기",   sub: "가족에게 받은 6자리 코드를 입력해요" },
-                };
-                const { title, sub } = labels[action];
+                const { title, sub } = HOUSEHOLD_LABELS[action];
                 return (
                   <button
                     key={action}

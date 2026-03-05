@@ -50,20 +50,18 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ saved: false, error: error.message }, { status: 500 });
   }
 
-  // summary 재계산
-  const txQuery = supabase.from("transactions").select("type, amount").eq("year_month", yearMonth);
-  if (householdId) txQuery.eq("household_id", householdId);
-  else txQuery.eq("user_id", user.id);
-  const { data: txs } = await txQuery;
+  // summary 재계산 (병렬 조회)
+  let txQ = supabase.from("transactions").select("type, amount").eq("year_month", yearMonth);
+  txQ = householdId ? txQ.eq("household_id", householdId) : txQ.eq("user_id", user.id);
+
+  let goalQ = supabase.from("goals").select("target_net_profit").eq("year_month", yearMonth);
+  goalQ = householdId ? goalQ.eq("household_id", householdId) : goalQ.eq("user_id", user.id);
+
+  const [{ data: txs }, { data: goal }] = await Promise.all([txQ, goalQ.maybeSingle()]);
 
   const income = (txs ?? []).filter((t) => t.type === "income").reduce((s, t) => s + t.amount, 0);
   const expense = (txs ?? []).filter((t) => t.type === "expense").reduce((s, t) => s + t.amount, 0);
   const net = income - expense;
-
-  const goalQuery = supabase.from("goals").select("target_net_profit").eq("year_month", yearMonth);
-  if (householdId) goalQuery.eq("household_id", householdId);
-  else goalQuery.eq("user_id", user.id);
-  const { data: goal } = await goalQuery.maybeSingle();
 
   const target = goal?.target_net_profit ?? 0;
   const progress = target > 0 ? Math.round((net / target) * 100) : 0;
