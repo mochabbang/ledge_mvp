@@ -7,6 +7,7 @@ import TransactionList from "@/components/TransactionList";
 import DailyChart, { type DailyData } from "@/components/DailyChart";
 import type { Summary, Transaction } from "@/lib/supabase/types";
 import { createClient } from "@/lib/supabase/client";
+import type { HouseholdInfo } from "@/lib/supabase/types";
 
 function currentMonth() {
   const d = new Date();
@@ -44,6 +45,8 @@ export default function DashboardPage() {
   const [chartData, setChartData] = useState<DailyData[]>([]);
   const [toast, setToast] = useState("");
   const [month, setMonth] = useState(currentMonth);
+  const [household, setHousehold] = useState<HouseholdInfo | null>(null);
+  const [codeCopied, setCodeCopied] = useState(false);
   const today = currentMonth();
 
   const showToast = (msg: string) => {
@@ -68,6 +71,21 @@ export default function DashboardPage() {
     const res = await fetch(`/api/summary?month=${month}`);
     if (res.ok) setSummary(await res.json());
   }, [month]);
+
+  useEffect(() => {
+    fetch("/api/household/info")
+      .then((r) => r.json())
+      .then((d) => setHousehold(d.household ?? null))
+      .catch(() => {});
+  }, []);
+
+  function copyCode() {
+    if (!household?.invite_code) return;
+    navigator.clipboard.writeText(household.invite_code).then(() => {
+      setCodeCopied(true);
+      setTimeout(() => setCodeCopied(false), 2000);
+    });
+  }
 
   useEffect(() => { loadData(); }, [loadData]);
 
@@ -110,7 +128,19 @@ export default function DashboardPage() {
       {/* 헤더 */}
       <div className="flex justify-between items-center">
         <h1 className="text-lg font-bold">Ledge</h1>
-        <a href="/onboarding" className="text-xs text-blue-500 hover:underline">목표 변경</a>
+        <div className="flex items-center gap-2">
+          {household?.invite_code && (
+            <button
+              onClick={copyCode}
+              title="초대 코드 복사"
+              className="flex items-center gap-1 bg-blue-50 border border-blue-200 rounded-lg px-2 py-1 text-xs font-mono font-semibold text-blue-600 hover:bg-blue-100 transition"
+            >
+              <span>{household.invite_code}</span>
+              <span className="text-blue-400">{codeCopied ? "✓" : "⧉"}</span>
+            </button>
+          )}
+          <a href="/onboarding" className="text-xs text-blue-500 hover:underline">설정</a>
+        </div>
       </div>
 
       {/* 월 네비게이터 */}
