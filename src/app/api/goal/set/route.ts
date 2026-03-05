@@ -47,11 +47,12 @@ export async function POST(req: NextRequest) {
         .single());
     }
   } else {
-    // 개인 목표: primary key (user_id, year_month) 기준 upsert
+    // 개인 목표: user_id,year_month 기준 upsert
     ({ data, error } = await supabase
       .from("goals")
       .upsert(
         { user_id: user.id, year_month: month, target_net_profit, updated_at: now },
+        { onConflict: "user_id,year_month" }
       )
       .select()
       .single());
