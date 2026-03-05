@@ -71,11 +71,15 @@ export default function OnboardingPage() {
       const supabase = createClient();
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
-        await supabase.from("profiles").upsert(
+        const { error: profileError } = await supabase.from("profiles").upsert(
           { user_id: user.id, display_name: displayName.trim() },
           { onConflict: "user_id" }
         );
-        await supabase.auth.updateUser({ data: { display_name: displayName.trim() } });
+        if (profileError) {
+          setError(`프로필 저장 실패: ${profileError.message}`);
+          setLoading(false);
+          return;
+        }
       }
     }
 
@@ -85,7 +89,11 @@ export default function OnboardingPage() {
       body: JSON.stringify({ month, target_net_profit: value }),
     });
     setLoading(false);
-    if (!res.ok) { setError("저장 실패. 다시 시도해주세요."); return; }
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      setError(`목표 저장 실패: ${data.error ?? res.status}`);
+      return;
+    }
     router.push("/dashboard");
     router.refresh();
   }
