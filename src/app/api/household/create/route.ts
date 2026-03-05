@@ -14,8 +14,9 @@ export async function POST(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const body = await req.json();
-  const displayName: string = (body?.display_name ?? "").trim();
+  let body: Record<string, unknown> = {};
+  try { body = await req.json(); } catch { /* body 없음 */ }
+  const displayName: string = ((body?.display_name as string) ?? "").trim();
 
   // 고유 초대 코드 생성
   let invite_code = generateCode();
