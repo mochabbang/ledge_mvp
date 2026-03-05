@@ -20,29 +20,26 @@ export default function OnboardingPage() {
   const now = new Date();
   const month = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
 
-  // Step 1: nickname
-  async function handleNicknameNext(e: React.FormEvent) {
+  // Step 1: 닉네임 → API 없이 즉시 다음 단계
+  function handleNicknameNext(e: React.FormEvent) {
     e.preventDefault();
     if (!displayName.trim()) { setError("이름을 입력하세요"); return; }
     setError("");
-    setLoading(true);
-    const supabase = createClient();
-    const { error: updateError } = await supabase.auth.updateUser({
-      data: { display_name: displayName.trim() },
-    });
-    setLoading(false);
-    if (updateError) { setError("이름 저장 실패. 다시 시도해주세요."); return; }
     setStep("household");
   }
 
-  // Step 2: household
+  // Step 2: 가족 연결
   async function handleHouseholdNext(e: React.FormEvent) {
     e.preventDefault();
     setError("");
     setLoading(true);
 
     if (householdAction === "create") {
-      const res = await fetch("/api/household/create", { method: "POST" });
+      const res = await fetch("/api/household/create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ display_name: displayName }),
+      });
       const data = await res.json();
       if (!res.ok) { setError(data.error ?? "가족 생성 실패"); setLoading(false); return; }
       setCreatedCode(data.invite_code);
@@ -51,24 +48,36 @@ export default function OnboardingPage() {
       const res = await fetch("/api/household/join", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ invite_code: inviteCode.trim() }),
+        body: JSON.stringify({ invite_code: inviteCode.trim(), display_name: displayName }),
       });
       const data = await res.json();
       if (!res.ok) { setError(data.error ?? "참여 실패"); setLoading(false); return; }
     }
-    // "none" → skip household
 
     setLoading(false);
     setStep("goal");
   }
 
-  // Step 3: goal
+  // Step 3: 목표 + 프로필 저장
   async function handleGoalSave(e: React.FormEvent) {
     e.preventDefault();
     const value = parseInt(target.replace(/,/g, ""), 10);
     if (isNaN(value) || value < 0) { setError("유효한 금액을 입력하세요"); return; }
     setError("");
     setLoading(true);
+
+    // 혼자 시작인 경우 프로필 저장 (create/join은 이미 저장됨)
+    if (householdAction === "none") {
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        await supabase.from("profiles").upsert(
+          { user_id: user.id, display_name: displayName.trim() },
+          { onConflict: "user_id" }
+        );
+        await supabase.auth.updateUser({ data: { display_name: displayName.trim() } });
+      }
+    }
 
     const res = await fetch("/api/goal/set", {
       method: "POST",
@@ -81,27 +90,21 @@ export default function OnboardingPage() {
     router.refresh();
   }
 
-  const stepLabel = step === "nickname" ? "1/3" : step === "household" ? "2/3" : "3/3";
+  const stepIndex = step === "nickname" ? 0 : step === "household" ? 1 : 2;
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
       <div className="bg-white rounded-2xl shadow p-8 w-full max-w-sm">
         {/* Progress indicator */}
         <div className="flex gap-1 mb-6">
-          {(["nickname", "household", "goal"] as Step[]).map((s, i) => (
+          {[0, 1, 2].map((i) => (
             <div
-              key={s}
-              className={`h-1 flex-1 rounded-full ${
-                (step === "nickname" && i === 0) ||
-                (step === "household" && i <= 1) ||
-                (step === "goal" && i <= 2)
-                  ? "bg-blue-500"
-                  : "bg-gray-200"
-              }`}
+              key={i}
+              className={`h-1 flex-1 rounded-full ${i <= stepIndex ? "bg-blue-500" : "bg-gray-200"}`}
             />
           ))}
         </div>
-        <p className="text-xs text-gray-400 mb-1">{stepLabel}</p>
+        <p className="text-xs text-gray-400 mb-1">{stepIndex + 1}/3</p>
 
         {/* Step 1: Nickname */}
         {step === "nickname" && (
@@ -121,10 +124,9 @@ export default function OnboardingPage() {
               {error && <p className="text-red-500 text-sm">{error}</p>}
               <button
                 type="submit"
-                disabled={loading}
-                className="w-full bg-blue-500 text-white rounded-lg py-3 font-semibold hover:bg-blue-600 transition disabled:opacity-60"
+                className="w-full bg-blue-500 text-white rounded-lg py-3 font-semibold hover:bg-blue-600 transition"
               >
-                {loading ? "저장 중..." : "다음"}
+                다음
               </button>
             </form>
           </>
@@ -136,39 +138,30 @@ export default function OnboardingPage() {
             <h1 className="text-xl font-bold mb-1">가족 연결</h1>
             <p className="text-gray-500 text-sm mb-6">가족과 함께 쓰거나 혼자 시작할 수 있어요</p>
             <form onSubmit={handleHouseholdNext} className="space-y-3">
-              {/* Option buttons */}
-              <button
-                type="button"
-                onClick={() => { setHouseholdAction("none"); setError(""); }}
-                className={`w-full border rounded-lg px-4 py-3 text-sm font-medium text-left transition ${
-                  householdAction === "none" ? "border-blue-500 bg-blue-50 text-blue-700" : "border-gray-200 hover:border-gray-300"
-                }`}
-              >
-                혼자 시작하기
-                <span className="block text-xs text-gray-400 font-normal mt-0.5">나중에 가족을 초대할 수 있어요</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => { setHouseholdAction("create"); setError(""); }}
-                className={`w-full border rounded-lg px-4 py-3 text-sm font-medium text-left transition ${
-                  householdAction === "create" ? "border-blue-500 bg-blue-50 text-blue-700" : "border-gray-200 hover:border-gray-300"
-                }`}
-              >
-                새 가족 만들기
-                <span className="block text-xs text-gray-400 font-normal mt-0.5">초대 코드를 생성해 가족을 초대해요</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => { setHouseholdAction("join"); setError(""); }}
-                className={`w-full border rounded-lg px-4 py-3 text-sm font-medium text-left transition ${
-                  householdAction === "join" ? "border-blue-500 bg-blue-50 text-blue-700" : "border-gray-200 hover:border-gray-300"
-                }`}
-              >
-                초대 코드로 참여하기
-                <span className="block text-xs text-gray-400 font-normal mt-0.5">가족에게 받은 6자리 코드를 입력해요</span>
-              </button>
+              {(["none", "create", "join"] as HouseholdAction[]).map((action) => {
+                const labels: Record<HouseholdAction, { title: string; sub: string }> = {
+                  none:   { title: "혼자 시작하기",         sub: "나중에 가족을 초대할 수 있어요" },
+                  create: { title: "새 가족 만들기",         sub: "초대 코드를 생성해 가족을 초대해요" },
+                  join:   { title: "초대 코드로 참여하기",   sub: "가족에게 받은 6자리 코드를 입력해요" },
+                };
+                const { title, sub } = labels[action];
+                return (
+                  <button
+                    key={action}
+                    type="button"
+                    onClick={() => { setHouseholdAction(action); setError(""); }}
+                    className={`w-full border rounded-lg px-4 py-3 text-sm font-medium text-left transition ${
+                      householdAction === action
+                        ? "border-blue-500 bg-blue-50 text-blue-700"
+                        : "border-gray-200 hover:border-gray-300"
+                    }`}
+                  >
+                    {title}
+                    <span className="block text-xs text-gray-400 font-normal mt-0.5">{sub}</span>
+                  </button>
+                );
+              })}
 
-              {/* Join: code input */}
               {householdAction === "join" && (
                 <input
                   type="text"
@@ -181,7 +174,6 @@ export default function OnboardingPage() {
                 />
               )}
 
-              {/* Created code display */}
               {createdCode && (
                 <div className="bg-blue-50 rounded-lg px-4 py-3 text-center">
                   <p className="text-xs text-blue-500 mb-1">생성된 초대 코드</p>
