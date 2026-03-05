@@ -17,26 +17,41 @@ export async function POST(req: NextRequest) {
 
   const profile = await getProfile(supabase, user.id);
   const householdId = profile?.household_id ?? null;
+  const now = new Date().toISOString();
 
   let data, error;
 
   if (householdId) {
-    // 가족 목표: household_id 기준 upsert
-    ({ data, error } = await supabase
+    // 가족 목표: 기존 레코드 확인 후 UPDATE or INSERT
+    const { data: existing } = await supabase
       .from("goals")
-      .upsert(
-        { user_id: user.id, household_id: householdId, year_month: month, target_net_profit, updated_at: new Date().toISOString() },
-        { onConflict: "household_id,year_month" }
-      )
-      .select()
-      .single());
+      .select("user_id")
+      .eq("household_id", householdId)
+      .eq("year_month", month)
+      .limit(1)
+      .maybeSingle();
+
+    if (existing) {
+      ({ data, error } = await supabase
+        .from("goals")
+        .update({ target_net_profit, updated_at: now })
+        .eq("household_id", householdId)
+        .eq("year_month", month)
+        .select()
+        .single());
+    } else {
+      ({ data, error } = await supabase
+        .from("goals")
+        .insert({ user_id: user.id, household_id: householdId, year_month: month, target_net_profit, updated_at: now })
+        .select()
+        .single());
+    }
   } else {
-    // 개인 목표: user_id 기준 upsert
+    // 개인 목표: primary key (user_id, year_month) 기준 upsert
     ({ data, error } = await supabase
       .from("goals")
       .upsert(
-        { user_id: user.id, year_month: month, target_net_profit, updated_at: new Date().toISOString() },
-        { onConflict: "user_id,year_month" }
+        { user_id: user.id, year_month: month, target_net_profit, updated_at: now },
       )
       .select()
       .single());
