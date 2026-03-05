@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//c/Users//**)",
+      "Bash(cat \"/c/Users/LG/.claude/projects/\"*)",
+      "Bash(ls \"E:/Practice/ledge_mvp_claude/\"*.env*)",
+      "Bash(ls \"E:/Practice/ledge_mvp_claude/.env\"*)",
+      "Bash(supabase --version)",
+      "Bash(npx supabase --version)",
+      "Bash(python -c \"import paramiko; print\\(''paramiko ok''\\)\")",
+      "Bash(pip install paramiko -q)"
+    ],
+    "additionalDirectories": [
+      "C:\\Users\\LG\\.claude\\projects\\e--Practice-ledge-mvp-claude",
+      "e:\\Practice\\ledge_mvp_claude"
+    ]
+  }
+}
