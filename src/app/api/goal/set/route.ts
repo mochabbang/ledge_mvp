@@ -22,7 +22,7 @@ export async function POST(req: NextRequest) {
   let data, error;
 
   if (householdId) {
-    // 가족 목표: 기존 레코드 확인 후 UPDATE or INSERT
+    // 가족 목표: household_id+year_month 기준 SELECT → UPDATE or INSERT
     const { data: existing } = await supabase
       .from("goals")
       .select("user_id")
@@ -47,15 +47,29 @@ export async function POST(req: NextRequest) {
         .single());
     }
   } else {
-    // 개인 목표: user_id,year_month 기준 upsert
-    ({ data, error } = await supabase
+    // 개인 목표: user_id+year_month 기준 SELECT → UPDATE or INSERT
+    const { data: existing } = await supabase
       .from("goals")
-      .upsert(
-        { user_id: user.id, year_month: month, target_net_profit, updated_at: now },
-        { onConflict: "user_id,year_month" }
-      )
-      .select()
-      .single());
+      .select("user_id")
+      .eq("user_id", user.id)
+      .eq("year_month", month)
+      .maybeSingle();
+
+    if (existing) {
+      ({ data, error } = await supabase
+        .from("goals")
+        .update({ target_net_profit, updated_at: now })
+        .eq("user_id", user.id)
+        .eq("year_month", month)
+        .select()
+        .single());
+    } else {
+      ({ data, error } = await supabase
+        .from("goals")
+        .insert({ user_id: user.id, year_month: month, target_net_profit, updated_at: now })
+        .select()
+        .single());
+    }
   }
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
