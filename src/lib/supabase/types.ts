@@ -31,6 +31,9 @@ export interface Transaction {
   raw_text: string;
   created_at: string;
   registered_by?: string;
+  payment_method: "card" | "cash";
+  installment_months: number;
+  installment_group_id?: string | null;
 }
 
 export interface Summary {

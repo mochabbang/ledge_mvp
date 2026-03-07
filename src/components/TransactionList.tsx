@@ -223,8 +223,22 @@ export default function TransactionList({ transactions, onSave, onDelete }: Prop
                         </span>
                         <div>
                           <p className="text-sm font-medium">{tx.raw_text}</p>
-                          <div className="flex items-center gap-1.5 mt-0.5">
+                          <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
                             <p className="text-xs text-gray-400">{timeAgo(tx.created_at)}</p>
+                            {/* 결제수단 배지 */}
+                            <span className={`text-[10px] px-1.5 py-0.5 rounded-full leading-none ${
+                              tx.payment_method === "card"
+                                ? "bg-blue-50 text-blue-500"
+                                : "bg-gray-100 text-gray-400"
+                            }`}>
+                              {tx.payment_method === "card" ? "💳 카드" : "현금"}
+                            </span>
+                            {/* 할부 배지 */}
+                            {tx.installment_months > 1 && (
+                              <span className="text-[10px] bg-purple-50 text-purple-500 px-1.5 py-0.5 rounded-full leading-none">
+                                {tx.installment_months}할부
+                              </span>
+                            )}
                             {tx.registered_by && (
                               <span className="text-[10px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded-full leading-none">
                                 {tx.registered_by}

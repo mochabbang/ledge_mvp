@@ -96,6 +96,22 @@ export default function InputBox({ onSubmit, disabled }: Props) {
             {fmt(parsed.amount)}원
           </span>
 
+          {/* 결제수단 배지 */}
+          <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${
+            parsed.payment_method === "card"
+              ? "bg-blue-50 text-blue-500"
+              : "bg-gray-100 text-gray-500"
+          }`}>
+            {parsed.payment_method === "card" ? "💳 카드" : "현금"}
+          </span>
+
+          {/* 할부 정보 */}
+          {parsed.installment_months > 1 && (
+            <span className="text-[10px] bg-purple-50 text-purple-500 px-1.5 py-0.5 rounded-full">
+              {parsed.installment_months}할부 {fmt(Math.round(parsed.amount / parsed.installment_months))}원/월
+            </span>
+          )}
+
           {/* 금액 불확실 표시 */}
           {parsed.needs_confirm && (
             <span className="text-[10px] text-orange-400 bg-orange-50 px-1.5 py-0.5 rounded-full">

@@ -19,38 +19,50 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ saved: false, error: "금액을 찾지 못했어요" });
   }
 
-  const yearMonth = dateStr.slice(0, 7);
-  const createdAt = `${dateStr}T12:00:00+09:00`;
-
   const profile = await getProfile(supabase, user.id);
   const householdId = profile?.household_id ?? null;
-
   const registeredBy: string =
     profile?.display_name ||
     user.user_metadata?.display_name ||
     user.email?.split("@")[0] ||
     "알 수 없음";
 
-  const { data: transaction, error } = await supabase
-    .from("transactions")
-    .insert({
+  const installmentMonths = parsed.installment_months;
+  const perMonthAmount =
+    installmentMonths > 1 ? Math.round(parsed.amount / installmentMonths) : parsed.amount;
+  const groupId = installmentMonths > 1 ? crypto.randomUUID() : null;
+
+  // 할부 개월 수만큼 레코드 생성
+  const records = Array.from({ length: installmentMonths }, (_, i) => {
+    const d = new Date(dateStr);
+    d.setMonth(d.getMonth() + i);
+    const ds = d.toISOString().slice(0, 10);
+    return {
       user_id: user.id,
       household_id: householdId,
-      year_month: yearMonth,
+      year_month: ds.slice(0, 7),
       type: typeOverride ?? parsed.type,
-      amount: parsed.amount,
+      amount: perMonthAmount,
       raw_text: parsed.raw_text,
-      created_at: createdAt,
+      payment_method: parsed.payment_method,
+      installment_months: installmentMonths,
+      installment_group_id: groupId,
+      created_at: `${ds}T12:00:00+09:00`,
       registered_by: registeredBy,
-    })
-    .select()
-    .single();
+    };
+  });
+
+  const { data: inserted, error } = await supabase
+    .from("transactions")
+    .insert(records)
+    .select();
 
   if (error) {
     return NextResponse.json({ saved: false, error: error.message }, { status: 500 });
   }
 
   // summary 재계산 (병렬 조회)
+  const yearMonth = dateStr.slice(0, 7);
   let txQ = supabase.from("transactions").select("type, amount").eq("year_month", yearMonth);
   txQ = householdId ? txQ.eq("household_id", householdId) : txQ.eq("user_id", user.id);
 
@@ -68,7 +80,7 @@ export async function POST(req: NextRequest) {
 
   return NextResponse.json({
     saved: true,
-    transaction,
+    transaction: inserted?.[0],
     summary: { income, expense, net, target, progress, remaining: target - net },
     suggestions: {
       type_candidates: parsed.type_candidates,

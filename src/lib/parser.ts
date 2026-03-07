@@ -7,10 +7,33 @@ export interface ParseResult {
   needs_confirm: boolean;
   type_candidates: Array<"income" | "expense">;
   amount_candidates: number[];
+  payment_method: "card" | "cash";
+  installment_months: number;
   reason: {
     matched_amount: string;
     matched_type_keyword: string;
   };
+}
+
+// 결제수단 감지
+function extractPaymentMethod(text: string): "card" | "cash" {
+  if (/카드|신용카드|체크카드/.test(text)) return "card";
+  if (/현금/.test(text)) return "cash";
+  return "cash"; // 기본값
+}
+
+// 할부 개월 수 감지 ("3할부", "할부3", "3개월할부", "할부3개월")
+function extractInstallmentMonths(text: string): number {
+  const m =
+    text.match(/(\d+)\s*개월\s*할부/) ??
+    text.match(/할부\s*(\d+)\s*개월/) ??
+    text.match(/(\d+)\s*할부/) ??
+    text.match(/할부\s*(\d+)/);
+  if (m) {
+    const n = parseInt(m[1], 10);
+    if (n >= 2 && n <= 60) return n;
+  }
+  return 1; // 일시불
 }
 
 // 3-1. 키워드 사전
@@ -126,6 +149,8 @@ export function parse(text: string): ParseResult | null {
     needs_confirm: amountMatch.needsConfirm,
     type_candidates,
     amount_candidates: amountMatch.candidates,
+    payment_method: extractPaymentMethod(raw_text),
+    installment_months: extractInstallmentMonths(raw_text),
     reason: {
       matched_amount: amountMatch.matched,
       matched_type_keyword: matchedKeyword,
