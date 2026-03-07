@@ -1,7 +1,6 @@
 // POST /api/goal/set
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { getProfile } from "@/lib/supabase/getProfile";
 
 export async function POST(req: NextRequest) {
   const supabase = createClient();
@@ -15,62 +14,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "month, target_net_profit(>=0) 필요" }, { status: 400 });
   }
 
-  const profile = await getProfile(supabase, user.id);
-  const householdId = profile?.household_id ?? null;
-  const now = new Date().toISOString();
-
-  let data, error;
-
-  if (householdId) {
-    // 가족 목표: household_id+year_month 기준 SELECT → UPDATE or INSERT
-    const { data: existing } = await supabase
-      .from("goals")
-      .select("user_id")
-      .eq("household_id", householdId)
-      .eq("year_month", month)
-      .limit(1)
-      .maybeSingle();
-
-    if (existing) {
-      ({ data, error } = await supabase
-        .from("goals")
-        .update({ target_net_profit, updated_at: now })
-        .eq("household_id", householdId)
-        .eq("year_month", month)
-        .select()
-        .single());
-    } else {
-      ({ data, error } = await supabase
-        .from("goals")
-        .insert({ user_id: user.id, household_id: householdId, year_month: month, target_net_profit, updated_at: now })
-        .select()
-        .single());
-    }
-  } else {
-    // 개인 목표: user_id+year_month 기준 SELECT → UPDATE or INSERT
-    const { data: existing } = await supabase
-      .from("goals")
-      .select("user_id")
-      .eq("user_id", user.id)
-      .eq("year_month", month)
-      .maybeSingle();
-
-    if (existing) {
-      ({ data, error } = await supabase
-        .from("goals")
-        .update({ target_net_profit, updated_at: now })
-        .eq("user_id", user.id)
-        .eq("year_month", month)
-        .select()
-        .single());
-    } else {
-      ({ data, error } = await supabase
-        .from("goals")
-        .insert({ user_id: user.id, year_month: month, target_net_profit, updated_at: now })
-        .select()
-        .single());
-    }
-  }
+  const { data, error } = await supabase.rpc("set_goal", {
+    p_year_month: month,
+    p_target_net_profit: target_net_profit,
+  });
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
