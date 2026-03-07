@@ -2,9 +2,16 @@
 import { useState } from "react";
 import type { Transaction } from "@/lib/supabase/types";
 
+interface Patch {
+  type?: "income" | "expense";
+  amount?: number;
+  raw_text?: string;
+  payment_method?: "card" | "cash";
+}
+
 interface Props {
   transactions: Transaction[];
-  onSave: (id: string, patch: { type?: "income" | "expense"; amount?: number; raw_text?: string }) => Promise<void>;
+  onSave: (id: string, patch: Patch) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
 }
 
@@ -46,17 +53,19 @@ function InlineEdit({
   onClose,
 }: {
   tx: Transaction;
-  onSave: (patch: { type?: "income" | "expense"; amount?: number; raw_text?: string }) => Promise<void>;
+  onSave: (patch: Patch) => Promise<void>;
   onDelete: () => Promise<void>;
   onClose: () => void;
 }) {
   const [type, setType] = useState<"income" | "expense">(tx.type);
   const [rawText, setRawText] = useState(tx.raw_text);
   const [amount, setAmount] = useState(String(tx.amount));
+  const [paymentMethod, setPaymentMethod] = useState<"card" | "cash">(tx.payment_method ?? "cash");
   const [loading, setLoading] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   const num = parseInt(amount, 10) || 0;
+  const isGrouped = !!tx.installment_group_id;
 
   function adjust(delta: number) {
     setAmount(String(Math.max(0, num + delta)));
@@ -65,7 +74,7 @@ function InlineEdit({
   async function handleSave() {
     if (!rawText.trim() || num < 0) return;
     setLoading(true);
-    await onSave({ type, amount: num, raw_text: rawText.trim() });
+    await onSave({ type, amount: num, raw_text: rawText.trim(), payment_method: paymentMethod });
     setLoading(false);
     onClose();
   }
@@ -83,7 +92,7 @@ function InlineEdit({
         />
       </div>
 
-      {/* 타입 토글 */}
+      {/* 수입/지출 + 결제수단 토글 */}
       <div className="flex gap-2">
         {(["income", "expense"] as const).map((t) => (
           <button
@@ -101,6 +110,40 @@ function InlineEdit({
           </button>
         ))}
       </div>
+
+      {/* 결제수단 토글 */}
+      <div>
+        <p className="text-xs text-gray-400 mb-1">
+          결제수단{isGrouped && <span className="ml-1 text-purple-400">(할부 전체 적용)</span>}
+        </p>
+        <div className="flex gap-2">
+          {(["cash", "card"] as const).map((m) => (
+            <button
+              key={m}
+              onClick={() => setPaymentMethod(m)}
+              className={`flex-1 py-1.5 rounded-lg text-sm font-medium border transition ${
+                paymentMethod === m
+                  ? m === "card"
+                    ? "bg-blue-500 text-white border-blue-500"
+                    : "bg-gray-500 text-white border-gray-500"
+                  : "bg-white text-gray-600 border-gray-300"
+              }`}
+            >
+              {m === "card" ? "💳 카드" : "현금"}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* 할부 정보 (읽기 전용) */}
+      {tx.installment_months > 1 && (
+        <div className="bg-purple-50 rounded-lg px-3 py-2">
+          <p className="text-xs text-purple-500">
+            {tx.installment_months}할부 · 건당 {fmt(tx.amount)}원
+            {isGrouped && " · 할부 개월 변경은 삭제 후 재입력"}
+          </p>
+        </div>
+      )}
 
       {/* 금액 입력 */}
       <div>

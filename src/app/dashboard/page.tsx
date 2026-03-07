@@ -106,7 +106,7 @@ export default function DashboardPage() {
     showToast("저장됨");
   }
 
-  async function handleUpdate(id: string, patch: { type?: "income" | "expense"; amount?: number; raw_text?: string }) {
+  async function handleUpdate(id: string, patch: { type?: "income" | "expense"; amount?: number; raw_text?: string; payment_method?: "card" | "cash" }) {
     const res = await fetch(`/api/transactions/${id}/update`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
