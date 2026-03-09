@@ -323,3 +323,32 @@ pm2 stop all
 - `pm2 save` 후 `pm2 resurrect`로 재부팅 복구 가능
 - 빌드 중 메모리 부족 시: `NODE_OPTIONS=--max-old-space-size=512 npm run build`
 - Cloudflare 터널은 **포트 포워딩 없이** 방화벽을 우회하므로 공유기 설정 불필요
+- `DEPLOY_SECRET`는 서버의 `.env.local`에도 반드시 추가 필요
+
+---
+
+## GitHub Webhook 자동 배포 설정
+
+### 서버 .env.local에 시크릿 추가
+
+```bash
+openssl rand -hex 32  # 시크릿 생성
+echo "DEPLOY_SECRET=생성된값" >> ~/ledge/.env.local
+```
+
+### GitHub Webhook 등록
+
+GitHub → 저장소 → Settings → Webhooks → Add webhook
+
+| 항목 | 값 |
+|---|---|
+| Payload URL | `https://ledge.mochabbang.com/api/deploy` |
+| Content type | `application/json` |
+| Secret | 위에서 생성한 값 |
+| Events | Just the push event |
+
+push 시 자동으로 `~/deploy.sh`가 실행됩니다. 로그 확인:
+
+```bash
+tail -f ~/deploy.log
+```
