@@ -7,6 +7,7 @@ interface Patch {
   amount?: number;
   raw_text?: string;
   payment_method?: "card" | "cash";
+  installment_months?: number;
 }
 
 interface Props {
@@ -61,11 +62,14 @@ function InlineEdit({
   const [rawText, setRawText] = useState(tx.raw_text);
   const [amount, setAmount] = useState(String(tx.amount));
   const [paymentMethod, setPaymentMethod] = useState<"card" | "cash">(tx.payment_method ?? "cash");
+  const [installMonths, setInstallMonths] = useState(tx.installment_months ?? 1);
   const [loading, setLoading] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   const num = parseInt(amount, 10) || 0;
   const isGrouped = !!tx.installment_group_id;
+  const totalAmount = (tx.amount) * (tx.installment_months ?? 1);
+  const newPerMonth = installMonths > 1 ? Math.round(totalAmount / installMonths) : totalAmount;
 
   function adjust(delta: number) {
     setAmount(String(Math.max(0, num + delta)));
@@ -74,7 +78,13 @@ function InlineEdit({
   async function handleSave() {
     if (!rawText.trim() || num < 0) return;
     setLoading(true);
-    await onSave({ type, amount: num, raw_text: rawText.trim(), payment_method: paymentMethod });
+    const patch: Patch = { type, raw_text: rawText.trim(), payment_method: paymentMethod };
+    if (installMonths !== (tx.installment_months ?? 1)) {
+      patch.installment_months = installMonths;
+    } else {
+      patch.amount = num;
+    }
+    await onSave(patch);
     setLoading(false);
     onClose();
   }
@@ -135,44 +145,71 @@ function InlineEdit({
         </div>
       </div>
 
-      {/* 할부 정보 (읽기 전용) */}
-      {tx.installment_months > 1 && (
-        <div className="bg-purple-50 rounded-lg px-3 py-2">
-          <p className="text-xs text-purple-500">
-            {tx.installment_months}할부 · 건당 {fmt(tx.amount)}원
-            {isGrouped && " · 할부 개월 변경은 삭제 후 재입력"}
-          </p>
+      {/* 할부 개월 수 */}
+      <div>
+        <p className="text-xs text-gray-400 mb-1">
+          할부 개월{isGrouped && <span className="ml-1 text-purple-400">(그룹 전체 재생성)</span>}
+        </p>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setInstallMonths((m) => Math.max(1, m - 1))}
+            className="w-8 h-8 flex items-center justify-center border rounded-lg text-sm hover:bg-gray-100 transition"
+          >
+            −
+          </button>
+          <span className="flex-1 text-center text-sm font-semibold">
+            {installMonths === 1 ? "일시불" : `${installMonths}개월`}
+          </span>
+          <button
+            onClick={() => setInstallMonths((m) => Math.min(60, m + 1))}
+            className="w-8 h-8 flex items-center justify-center border rounded-lg text-sm hover:bg-gray-100 transition"
+          >
+            +
+          </button>
         </div>
-      )}
+        {installMonths > 1 && (
+          <p className="text-xs text-purple-500 mt-1 text-center">
+            건당 {fmt(newPerMonth)}원/월 · 총 {fmt(totalAmount)}원
+          </p>
+        )}
+      </div>
 
       {/* 금액 입력 */}
-      <div>
-        <p className="text-xs text-gray-400 mb-1">금액</p>
-        <input
-          type="text"
-          inputMode="numeric"
-          value={amount}
-          onChange={(e) => setAmount(e.target.value.replace(/[^0-9]/g, ""))}
-          className="w-full border rounded-lg px-3 py-2 text-sm text-center outline-none focus:ring-2 focus:ring-blue-400 bg-white"
-        />
-        {/* 조정 버튼 — 입력칸 아래 */}
-        <div className="grid grid-cols-4 gap-1.5 mt-2">
-          {[
-            { label: "−만원", delta: -10000 },
-            { label: "−천원", delta: -1000 },
-            { label: "+천원", delta: 1000 },
-            { label: "+만원", delta: 10000 },
-          ].map(({ label, delta }) => (
-            <button
-              key={label}
-              onClick={() => adjust(delta)}
-              className="py-1.5 border rounded-lg text-xs bg-white hover:bg-gray-100 transition"
-            >
-              {label}
-            </button>
-          ))}
+      {installMonths !== (tx.installment_months ?? 1) ? (
+        <div className="bg-purple-50 rounded-lg px-3 py-2">
+          <p className="text-xs text-purple-500">
+            할부 개월 변경 시 금액은 자동 재계산됩니다
+          </p>
         </div>
-      </div>
+      ) : (
+        <div>
+          <p className="text-xs text-gray-400 mb-1">금액</p>
+          <input
+            type="text"
+            inputMode="numeric"
+            value={amount}
+            onChange={(e) => setAmount(e.target.value.replace(/[^0-9]/g, ""))}
+            className="w-full border rounded-lg px-3 py-2 text-sm text-center outline-none focus:ring-2 focus:ring-blue-400 bg-white"
+          />
+          {/* 조정 버튼 — 입력칸 아래 */}
+          <div className="grid grid-cols-4 gap-1.5 mt-2">
+            {[
+              { label: "−만원", delta: -10000 },
+              { label: "−천원", delta: -1000 },
+              { label: "+천원", delta: 1000 },
+              { label: "+만원", delta: 10000 },
+            ].map(({ label, delta }) => (
+              <button
+                key={label}
+                onClick={() => adjust(delta)}
+                className="py-1.5 border rounded-lg text-xs bg-white hover:bg-gray-100 transition"
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* 저장 / 삭제 */}
       <div className="flex gap-2">
